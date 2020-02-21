@@ -35,7 +35,7 @@ resource "vault_generic_endpoint" "auth_kerberos" {
 }
 
 resource "vault_generic_endpoint" "auth_kerberos_config" {
-  depends_on           = [vault_generic_endpoint.auth_kerberos]
+  depends_on           = [vault_generic_endpoint.plugin_auth_kerberos, vault_generic_endpoint.auth_kerberos]
   path                 = "${substr(vault_generic_endpoint.auth_kerberos.path, 4, 0)}/config"
   ignore_absent_fields = true
   disable_delete       = true
@@ -54,7 +54,7 @@ resource "vault_generic_endpoint" "auth_kerberos_config_ldap" {
 
 
   data_json = jsonencode({
-    url         = "ldap://dc01.domain.local"
+    url         = "ldap://dc.domain.local"
     userdn      = "DC=domain,DC=local"
     userattr    = "cn"
     upndomain   = "DOMAIN.LOCAL"
@@ -77,7 +77,7 @@ resource "vault_ldap_auth_backend" "ldap" {
   binddn     = "vagrant-domain@DOMAIN.LOCAL"
   bindpass   = "VagrantPass1"
   path       = "ldap"
-  url        = "ldap://dc01.domain.local"
+  url        = "ldap://dc.domain.local"
   userdn     = "CN=Users,DC=domain,DC=local"
   userattr   = "sAMAccountName"
   discoverdn = true

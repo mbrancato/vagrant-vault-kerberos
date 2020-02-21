@@ -5,3 +5,6 @@
 *.tfvars
 
 roles/vault/*
+
+FancyApp/bin/*
+FancyApp/obj/*

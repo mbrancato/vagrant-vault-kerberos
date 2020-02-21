@@ -29,10 +29,10 @@
   - name: domain-setup
     vars:
       man_domain_setup_network_name: '{{network_connection_name.stdout_lines[0]}}'
-  - name: adcs-enrollment
-  - name: adcs-winrm
-    vars:
-      man_adcs_winrm_is_dc: yes
+#  - name: adcs-enrollment
+#  - name: adcs-winrm
+#    vars:
+#      man_adcs_winrm_is_dc: yes
 
   post_tasks:
   - name: Add vault service account
@@ -76,11 +76,17 @@
     vars:
       man_domain_join_network_name: '{{network_connection_name.stdout_lines[0]}}'
       man_domain_join_dc_ip: "{{hostvars[groups.controller[0]].ansible_host}}"
-  - name: adcs-winrm
-    vars:
-      man_adcs_winrm_is_dc: no
+#  - name: adcs-winrm
+#    vars:
+#      man_adcs_winrm_is_dc: no
 
   tasks:
+  - name: Add vault to hosts
+    win_lineinfile:
+      path: c:\windows\system32\drivers\etc\hosts
+      line: "192.168.1.20 vault.{{ man_domain_setup_domain_name }}"
+      state: present
+
   - name: Install IIS Web-Server with sub features and management tools
     win_feature:
       name:
@@ -183,7 +189,7 @@
 
   - name: Create sample IIS web app
     win_iis_website:
-      name: Vault App
+      name: FancyApp
       state: started
       port: 80
       application_pool: FancyAppPool
@@ -228,6 +234,12 @@
       vault_kvno: "{{ vault_kvno }}"
 
   post_tasks:
+  - name: Add domain controller to hosts
+    lineinfile:
+      path: /etc/hosts
+      line: "192.168.1.10 dc.{{ man_domain_setup_domain_name }}"
+      state: present
+      
   - name: Create Terraform vars file
     template:
       src: vault.tfvars.j2
