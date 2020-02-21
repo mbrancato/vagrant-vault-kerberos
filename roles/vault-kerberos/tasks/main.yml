@@ -1,0 +1,47 @@
+---
+- name: Install the Golang apt repo
+  apt_repository:
+    repo: ppa:longsleep/golang-backports
+    state: present
+
+- name: Install Go
+  apt:
+    name:
+      - golang-go
+      - ldap-utils
+      - krb5-user
+
+- name: Check if plugin already exists
+  stat:
+    path: "{{ vault_plugin_dir }}/vault-plugin-auth-kerberos"
+  register: plugin_file
+
+- name: Go get plugin
+  shell: |
+    go get github.com/mitchellh/gox
+    go get github.com/hashicorp/vault-plugin-auth-kerberos
+    cd ~/go/src/github.com/hashicorp/vault-plugin-auth-kerberos
+    export PATH=$PATH:~/go/bin
+    make dev-linux-only
+    cp pkg/linux_amd64/vault-plugin-auth-kerberos {{ vault_plugin_dir }}
+  when: plugin_file.stat.exists == false
+
+- name: Get SHA-256 hash
+  shell: openssl dgst -sha256 {{ vault_plugin_dir }}/vault-plugin-auth-kerberos|cut -d ' ' -f2
+  register: plugin_sha256_output
+
+- set_fact:
+    plugin_sha256: "{{ plugin_sha256_output.stdout }}"
+
+- name: Generate keytab
+  shell: "rm -f /tmp/vault_svc.keytab; printf \"%b\" \"addent -password -p \"vault_svc@{{ man_adcs_winrm_domain | upper }}\" -k {{ vault_kvno }} -e rc4-hmac\n{{ vault_svc_password }}\nwrite_kt /tmp/vault_svc.keytab\" | ktutil"
+
+- name: Check keytab
+  shell: "printf \"%b\" \"read_kt /tmp/vault_svc.keytab\nlist\" | ktutil"
+
+- name: Encode keytab
+  shell: "base64 -w 0 /tmp/vault_svc.keytab"
+  register: vault_keytab_output
+
+- set_fact:
+    vault_keytab: "{{ vault_keytab_output.stdout }}"

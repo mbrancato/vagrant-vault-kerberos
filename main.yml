@@ -1,0 +1,236 @@
+---
+- name: get network adapter information for each host
+  hosts: windows
+  gather_facts: no
+  tasks:
+  - name: make absolutely sure the connection is active
+    wait_for_connection:
+
+  - name: get network connection name for private adapter
+    win_shell: |
+      foreach ($instance in (Get-CimInstance -ClassName Win32_NetworkAdapter -Filter "Netenabled='True'")) {
+          $instance_config = Get-CimInstance -ClassName WIn32_NetworkAdapterConfiguration -Filter "Index = '$($instance.Index)'"
+          if ($instance_config.IPAddress -contains "{{ansible_host}}") {
+              $instance.NetConnectionID
+          }
+      }
+    changed_when: false
+    register: network_connection_name
+
+  - name: fail if we didn't get a network connection name
+    fail:
+      msg: Failed to get the network connection name
+    when: network_connection_name.stdout_lines|count != 1
+
+- name: create Domain Controller and set AD CS
+  hosts: controller
+  gather_facts: no
+  roles:
+  - name: domain-setup
+    vars:
+      man_domain_setup_network_name: '{{network_connection_name.stdout_lines[0]}}'
+  - name: adcs-enrollment
+  - name: adcs-winrm
+    vars:
+      man_adcs_winrm_is_dc: yes
+
+  post_tasks:
+  - name: Add vault service account
+    win_domain_user:
+      name: vault_svc
+      password: "{{ vault_svc_password }}"
+      state: present
+
+  - name: Get vault service account KVNO
+    win_shell: (get-aduser vault_svc -property msDS-KeyVersionNumber)."msDS-KeyVersionNumber"
+    register: vault_kvno_output
+
+  - set_fact:
+      vault_kvno: "{{ vault_kvno_output.stdout_lines[0] }}"
+
+  - name: Register Vault SPN
+    win_shell: setspn.exe -U -S HTTP/vault.{{ man_domain_setup_domain_name }}:8200 vault_svc
+    ignore_errors: yes
+
+
+  - name: Register Vault SPN
+    win_shell: setspn.exe -U -S HTTP/vault.{{ man_domain_setup_domain_name }} vault_svc
+    ignore_errors: yes
+
+  - name:
+    set_fact:
+      fancy_app_password: "{{ lookup('password', '/dev/null length=48') }}"
+    delegate_to: localhost
+
+  - name: Add fancy_app service account
+    win_domain_user:
+      name: fancy_app
+      password: "{{ fancy_app_password }}"
+      state: present
+
+- name: connect the other Windows hosts to the domain
+  hosts: domain_children
+  gather_facts: no
+  roles:
+  - name: domain-join
+    vars:
+      man_domain_join_network_name: '{{network_connection_name.stdout_lines[0]}}'
+      man_domain_join_dc_ip: "{{hostvars[groups.controller[0]].ansible_host}}"
+  - name: adcs-winrm
+    vars:
+      man_adcs_winrm_is_dc: no
+
+  tasks:
+  - name: Install IIS Web-Server with sub features and management tools
+    win_feature:
+      name:
+      - Web-Server
+      - Web-Common-Http
+      state: present
+      include_sub_features: True
+      include_management_tools: True
+    register: win_feature
+
+  - name: reboot if installing Web-Server feature requires it
+    win_reboot:
+    when: win_feature.reboot_required
+
+  - name: Remove Default Web Site
+    win_iis_website:
+      name: "Default Web Site"
+      state: absent
+
+  - name: Download .NET Core SDK Installer
+    win_get_url:
+      url: https://dot.net/v1/dotnet-install.ps1
+      dest: "%TEMP%\\dotnet-install.ps1"
+      force: no
+
+  - name: Install .NET Core SDK
+    win_shell: |
+      & "$env:LOCALAPPDATA\Temp\dotnet-install.ps1" -Channel Current
+
+  - name: Download .NET Core Hosting Bundle
+    win_get_url:
+      url: https://download.visualstudio.microsoft.com/download/pr/dd119832-dc46-4ccf-bc12-69e7bfa61b18/990843c6e0cbd97f9df68c94f6de6bb6/dotnet-hosting-3.1.2-win.exe
+      dest: "%TEMP%\\dotnet-hosting.exe"
+      force: no
+
+  - name: Install .NET Core Hosting Bundle
+    win_shell: |
+      & "$env:LOCALAPPDATA\Temp\dotnet-hosting.exe" /install /quiet
+
+  - name: Create web app directory
+    win_file:
+      path: c:\sites\FancyApp\
+      state: directory
+
+  - name: Copy App to webserver
+    win_copy:
+      src: FancyApp/
+      dest: c:\sites\FancyApp\
+
+  - set_fact:
+      fancy_app_password: "{{ hostvars[groups.controller[0]].fancy_app_password }}"
+
+  - name: Stopping FancyApp application pool
+    win_iis_webapppool:
+      name: FancyAppPool
+      state: stopped
+      attributes:
+        enable32BitAppOnWin64: False
+        managedRuntimeVersion: null
+        processModel.identityType: SpecificUser
+        processModel.userName: "fancy_app@{{ man_domain_setup_domain_name }}"
+        processModel.password: "{{ fancy_app_password }}"
+
+  - name: Publish FancyApp
+    win_shell: |
+      & "$env:LOCALAPPDATA\Microsoft\dotnet\dotnet.exe" publish -o c:\sites\FancyApp\ c:\sites\FancyApp\FancyApp.csproj
+
+  - name: Create FancyApp application pool
+    win_iis_webapppool:
+      name: FancyAppPool
+      state: started
+      attributes:
+        enable32BitAppOnWin64: False
+        managedRuntimeVersion: null
+        processModel.identityType: SpecificUser
+        processModel.userName: "fancy_app@{{ man_domain_setup_domain_name }}"
+        processModel.password: "{{ fancy_app_password }}"
+
+  - name: Remove unnecessary application pools
+    win_iis_webapppool:
+      name: "{{ item }}"
+      state: absent
+    loop:
+    - .NET v2.0
+    - .NET v2.0 Classic
+    - .NET v4.5
+    - .NET v4.5 Classic
+    - Classic .NET AppPool
+    - DefaultAppPool
+
+  - name: Add IIS_IUSRS to sample app directory
+    win_acl:
+      path: c:\sites\FancyApp\
+      user: IIS_IUSRS
+      rights: FullControl
+      type: allow
+      state: present
+      inherit: ContainerInherit, ObjectInherit
+      propagation: 'None'
+
+  - name: Create sample IIS web app
+    win_iis_website:
+      name: Vault App
+      state: started
+      port: 80
+      application_pool: FancyAppPool
+      physical_path: c:\sites\FancyApp\
+      parameters: logfile.directory:c:\sites\logs
+    register: website
+
+  - name: Wait for .NET Core Hosting Bundle install
+    win_shell: |
+      Import-Module WebAdministration
+      $hostingbundle = Get-WebGlobalModule | Where-Object { $_.name.ToLower() -eq "aspnetcoremodulev2" }
+      while (!$hostingbundle)
+      {
+          $hostingbundle = Get-WebGlobalModule | Where-Object { $_.name.ToLower() -eq "aspnetcoremodulev2" }
+          Start-Sleep -Seconds 10
+      }
+
+  - name: Restart IIS services
+    win_shell: |
+      net stop was /y
+      net start w3svc
+
+- name: Install Vault
+  hosts: vault
+  any_errors_fatal: true
+  become: true
+  become_user: root
+
+  pre_tasks:
+  - set_fact:
+      vault_kvno: "{{ hostvars[groups.controller[0]].vault_kvno }}"
+
+  roles:
+  - name: vault
+    vars:
+      vault_version: '1.3.2'
+      vault_backend: file
+      vault_address: "0.0.0.0"
+      vault_log_level: trace
+  - name: vault-kerberos
+    vars:
+      vault_kvno: "{{ vault_kvno }}"
+
+  post_tasks:
+  - name: Create Terraform vars file
+    template:
+      src: vault.tfvars.j2
+      dest: "{{ playbook_dir }}/vault.tfvars"
+    delegate_to: localhost
+    become: false

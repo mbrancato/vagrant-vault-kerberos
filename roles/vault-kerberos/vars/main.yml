@@ -1,0 +1,3 @@
+---
+vault_plugin_dir: /usr/local/lib/vault/plugins
+vault_user: vault
