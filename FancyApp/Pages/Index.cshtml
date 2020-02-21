@@ -7,11 +7,14 @@ ViewData["Title"] = "Home page";
 <div class="text-center">
   <p>
     <strong>Request:</strong><br>
-    <code>@Model.RequestMsg</code>
+    <pre><code>@Model.RequestMsg</code></pre>
   </p>
   <hr>
   <p>
     <strong>Response:</strong><br>
-    <code>@Model.ResponseMsg</code>
+    <pre><code>@Model.ResponseMsg</code></pre>
+    <br>
+    <strong>Response Content:</strong><br>
+    <pre><code>@Model.ResponseContent</code></pre>
   </p>
 </div>
