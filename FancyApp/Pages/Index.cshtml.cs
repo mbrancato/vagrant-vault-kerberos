@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json.Linq;
 
 namespace FancyApp.Pages
 {
@@ -29,23 +30,20 @@ namespace FancyApp.Pages
       {
         UseDefaultCredentials = true,
         AllowAutoRedirect = true,
+        PreAuthenticate = true,
       };
 
       using (var client = new HttpClient(handler))
       {
         var req = new HttpRequestMessage(HttpMethod.Post, host);
-        //req.Credentials = System.Net.CredentialCache.DefaultNetworkCredentials;
 
-        //var res = client.SendAsync(req);
-        //var responseResult = res.Result;
         RequestMsg = req.ToString();
         using (HttpResponseMessage response = client.SendAsync(req).Result)
         {
           ResponseMsg = response.ToString();
           using (HttpContent content = response.Content)
           {
-            var json = content.ReadAsStringAsync().Result;
-            ResponseContent = json;
+            ResponseContent = JObject.Parse(content.ReadAsStringAsync().Result).ToString();
           }
         }
       }
