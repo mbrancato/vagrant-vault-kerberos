@@ -66,6 +66,7 @@
     win_domain_user:
       name: fancy_app
       password: "{{ fancy_app_password }}"
+      upn: fancy_app@{{ man_domain_setup_domain_name | upper }}
       state: present
 
 - name: connect the other Windows hosts to the domain
@@ -239,7 +240,7 @@
       path: /etc/hosts
       line: "192.168.1.10 dc.{{ man_domain_setup_domain_name }}"
       state: present
-      
+
   - name: Create Terraform vars file
     template:
       src: vault.tfvars.j2
