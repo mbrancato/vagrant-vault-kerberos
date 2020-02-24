@@ -2,26 +2,9 @@ variable "vault_keytab" {
   type = string
 }
 
-variable "plugin_sha256" {
-  type = string
-}
-
 provider "vault" {}
 
-resource "vault_generic_endpoint" "plugin_auth_kerberos" {
-  path                 = "sys/plugins/catalog/auth/kerberos"
-  disable_read         = false
-  disable_delete       = false
-  ignore_absent_fields = true
-
-  data_json = jsonencode({
-    sha_256 = var.plugin_sha256
-    command = "vault-plugin-auth-kerberos"
-  })
-}
-
 resource "vault_generic_endpoint" "auth_kerberos" {
-  depends_on   = [vault_generic_endpoint.plugin_auth_kerberos]
   path         = "sys/auth/kerberos/domain.local"
   disable_read = true
 
@@ -35,8 +18,7 @@ resource "vault_generic_endpoint" "auth_kerberos" {
 }
 
 resource "vault_generic_endpoint" "auth_kerberos_config" {
-  depends_on           = [vault_generic_endpoint.plugin_auth_kerberos, vault_generic_endpoint.auth_kerberos]
-  path                 = "${substr(vault_generic_endpoint.auth_kerberos.path, 4, 0)}/config"
+  path                 = join("/", ["auth", substr(vault_generic_endpoint.auth_kerberos.path, 9, 0), "config"])
   ignore_absent_fields = true
   disable_delete       = true
 

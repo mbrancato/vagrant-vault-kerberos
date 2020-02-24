@@ -29,10 +29,6 @@
   - name: domain-setup
     vars:
       man_domain_setup_network_name: '{{network_connection_name.stdout_lines[0]}}'
-#  - name: adcs-enrollment
-#  - name: adcs-winrm
-#    vars:
-#      man_adcs_winrm_is_dc: yes
 
   post_tasks:
   - name: Add vault service account
@@ -77,9 +73,6 @@
     vars:
       man_domain_join_network_name: '{{network_connection_name.stdout_lines[0]}}'
       man_domain_join_dc_ip: "{{hostvars[groups.controller[0]].ansible_host}}"
-#  - name: adcs-winrm
-#    vars:
-#      man_adcs_winrm_is_dc: no
 
   tasks:
   - name: Add vault to hosts
@@ -226,7 +219,7 @@
   roles:
   - name: vault
     vars:
-      vault_version: '1.3.2'
+      vault_version: "1.4.0-beta1"
       vault_backend: file
       vault_address: "0.0.0.0"
       vault_log_level: trace
