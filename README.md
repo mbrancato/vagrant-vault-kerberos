@@ -109,20 +109,18 @@ policies             ["root"]
 4) Configure Vault using Terraform
 ```
 $ terraform apply -var-file=vault.tfvars -auto-approve
-vault_generic_endpoint.plugin_auth_kerberos: Creating...
-vault_ldap_auth_backend.ldap: Creating...
-vault_generic_endpoint.plugin_auth_kerberos: Creation complete after 0s [id=sys/plugins/catalog/auth/kerberos]
-vault_ldap_auth_backend.ldap: Creation complete after 0s [id=ldap]
 vault_generic_endpoint.auth_kerberos: Creating...
+vault_ldap_auth_backend.ldap: Creating...
 vault_generic_endpoint.auth_kerberos: Creation complete after 0s [id=sys/auth/kerberos/domain.local]
 vault_generic_endpoint.auth_kerberos_config: Creating...
-vault_generic_endpoint.auth_kerberos_config: Creation complete after 1s [id=auth/kerberos/domain.local/config]
+vault_ldap_auth_backend.ldap: Creation complete after 0s [id=ldap]
+vault_generic_endpoint.auth_kerberos_config: Creation complete after 0s [id=auth/kerberos/domain.local/config]
 vault_generic_endpoint.auth_kerberos_config_ldap: Creating...
 vault_generic_endpoint.auth_kerberos_config_ldap: Creation complete after 0s [id=auth/kerberos/domain.local/config/ldap]
 vault_ldap_auth_backend_group.group: Creating...
 vault_ldap_auth_backend_group.group: Creation complete after 0s [id=auth/kerberos/domain.local/groups/Domain Users]
 
-Apply complete! Resources: 6 added, 0 changed, 0 destroyed.
+Apply complete! Resources: 5 added, 0 changed, 0 destroyed.
 ```
 
 ## Requirements
@@ -135,4 +133,5 @@ Apply complete! Resources: 6 added, 0 changed, 0 destroyed.
 ## References
 
 https://github.com/hashicorp/vault-plugin-auth-kerberos
+
 https://docs.microsoft.com/en-us/iis/configuration/system.applicationHost/applicationPools/add/processModel
