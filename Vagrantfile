@@ -7,71 +7,33 @@ require 'yaml'
 ENV["VAGRANT_OLD_ENV_OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
 
 # Read YAML file with box details
-inventory = YAML.load_file('inventory.yml')
+all_inventory = YAML.load_file('inventory.yml')
 
-domain_controller_count = inventory['all']['children']['windows']['children']['controller']['hosts'].keys.count
-domain_children_count = inventory['all']['children']['windows']['children']['domain_children']['hosts'].keys.count
-vault_count = inventory['all']['children']['ubuntu']['children']['vault_hosts']['hosts'].keys.count
+domain_controller_inventory = all_inventory['all']['children']['windows']['children']['controller']['hosts']
+domain_children_inventory = all_inventory['all']['children']['windows']['children']['domain_children']['hosts']
+vault_inventory = all_inventory['all']['children']['ubuntu']['children']['vault_hosts']['hosts']
+inventory = domain_controller_inventory.merge(domain_children_inventory).merge(vault_inventory)
+network_ports = all_inventory['all']['vars']['vagrant_ports']
 
-current_host = 0
+current_host = 1
+vault_host = 0
 Vagrant.configure("2") do |config|
-  inventory['all']['children']['windows']['children']['controller']['hosts'].each do |server,details|
-    config.vm.define server do |dc|
-      dc.vm.box = details['vagrant_box']
-      dc.vm.hostname = server
-      dc.vm.network :private_network, ip: details['ansible_host']
-      inventory['all']['children']['windows']['vars']['vagrant_ports'].each do |protocol,details|
-        dc.vm.network :forwarded_port, guest: details['guest'], host: details['host'], id: protocol
-      end
 
-      dc.vm.provider :virtualbox do |v|
-        v.name = File.basename(File.dirname(__FILE__)) + "_" + server + "_" + Time.now.to_i.to_s
-        v.gui = false
-        v.memory = 2048
-        v.cpus = 2
-      end
-      current_host = current_host + 1
-    end
-  end
+  N = inventory.keys.count-1
+  (0..N).each do |machine_id|
+    host = inventory.keys[machine_id]
+    config.vm.define host do |machine|
+      machine.vm.hostname = host
+      machine.vm.box = inventory[host]['vagrant_box']
+      machine.vm.network "private_network", ip: inventory[host]['ansible_host']
+        network_ports.each do |protocol,details|
+          machine.vm.network :forwarded_port, guest: details['guest'], host: details['host']+machine_id, id: protocol
+        end
 
-  inventory['all']['children']['windows']['children']['domain_children']['hosts'].each do |server,details|
-    config.vm.define server do |srv|
-      srv.vm.box = details['vagrant_box']
-      srv.vm.hostname = server
-      srv.vm.network :private_network, ip: details['ansible_host']
-      inventory['all']['children']['windows']['vars']['vagrant_ports'].each do |protocol, details|
-        srv.vm.network :forwarded_port, guest: details['guest'], host: details['host'] + current_host, id: protocol
-      end
-
-      srv.vm.provider :virtualbox do |v|
-        v.name = File.basename(File.dirname(__FILE__)) + "_" + server + "_" + Time.now.to_i.to_s
-        v.gui = false
-        v.memory = 2048
-        v.cpus = 2
-      end
-      current_host = current_host + 1
-    end
-  end
-
-  inventory['all']['children']['ubuntu']['children']['vault_hosts']['hosts'].each do |server,details|
-    config.vm.define server do |srv|
-      srv.vm.box = details['vagrant_box']
-      srv.vm.hostname = server
-      srv.vm.network :private_network, ip: details['ansible_host']
-      inventory['all']['children']['ubuntu']['vars']['vagrant_ports'].each do |protocol, details|
-        srv.vm.network :forwarded_port, guest: details['guest'], host: details['host'] + current_host, id: protocol
-      end
-
-      srv.vm.provider :virtualbox do |v|
-        v.name = File.basename(File.dirname(__FILE__)) + "_" + server + "_" + Time.now.to_i.to_s
-        v.gui = false
-        v.memory = 512
-        v.cpus = 2
-      end
-      current_host = current_host + 1
-
-      if current_host >= domain_controller_count + domain_children_count + vault_count then
-        config.vm.provision "ansible" do |ansible|
+      # Provision after all machines are up
+      # this doesn't work for partial 'up' builds =/
+      if machine_id == N
+        machine.vm.provision :ansible do |ansible|
           ansible.playbook = "main.yml"
           ansible.limit = "all"
           ansible.inventory_path = "inventory.yml"
@@ -81,5 +43,4 @@ Vagrant.configure("2") do |config|
       end
     end
   end
-
 end
