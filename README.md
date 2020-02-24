@@ -25,9 +25,9 @@ Bringing machine 'web' up with 'virtualbox' provider...
 Bringing machine 'vault' up with 'virtualbox' provider...
 ...
 PLAY RECAP *********************************************************************
-dc                         : ok=31   changed=7    unreachable=0    failed=0    skipped=11   rescued=0    ignored=0   
-vault                      : ok=38   changed=22   unreachable=0    failed=0    skipped=37   rescued=0    ignored=1   
-web                        : ok=28   changed=9    unreachable=0    failed=0    skipped=7    rescued=0    ignored=0   
+dc                         : ok=15   changed=9    unreachable=0    failed=0    skipped=1    rescued=0    ignored=0   
+vault                      : ok=38   changed=23   unreachable=0    failed=0    skipped=37   rescued=0    ignored=1   
+web                        : ok=25   changed=20   unreachable=0    failed=0    skipped=3    rescued=0    ignored=0   
 
 ```
 
@@ -35,7 +35,7 @@ If the provision step fails, try running again with `vagrant provision vault`.
 
 2) Ensure Vault is alive
 ```
-$ export VAULT_ADDR=http://localhost:30702
+$ export VAULT_ADDR=http://localhost:30102
 $ vault status
 Key                Value
 ---                -----
