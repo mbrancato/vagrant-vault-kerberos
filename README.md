@@ -11,7 +11,7 @@ The goal is this is to build an example setup using Vagrant that:
 - Installs the Vault Kerberos plugin
 - Configures the app to authenticate to Vault with Kerberos
 
-After the setup in completed, simply hit (FancyApp)[http://localhost:30001] on http://localhost:30001 to see the working app.
+After the setup in completed, simply hit [FancyApp](http://localhost:30001) on http://localhost:30001 to see the working app.
 
 Active Directory setup based on [jborean93/ansible-windows](https://github.com/jborean93/ansible-windows).
 
